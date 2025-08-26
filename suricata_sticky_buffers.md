@@ -34,11 +34,11 @@ This design improves Suricata's rule-writing capabilities in several key ways:
 - Easier rule logic: The syntax more naturally expresses the intent of matching on distinct parts of a conversation, rather than a single contiguous block of data. [1, 4, 8]
 
 
-[1] https://docs.suricata.io/en/latest/rules/multi-buffer-matching.html
-[2] https://docs.suricata.io/en/latest/rules/multi-buffer-matching.html
-[3] https://docs.suricata.io/en/latest/rules/mdns-keywords.html
-[4] https://docs.suricata.io/en/suricata-7.0.2/rules/multi-buffer-matching.html
-[5] https://docs.suricata.io/en/suricata-7.0.2/rules/multi-buffer-matching.html
-[6] https://docs.suricata.io/en/latest/rules/multi-buffer-matching.html
-[7] https://docs.suricata.io/en/suricata-7.0.3/rules/http-keywords.html
-[8] https://gregorykelleher.com/nginx_security
+[1] https://docs.suricata.io/en/latest/rules/multi-buffer-matching.html<br>
+[2] https://docs.suricata.io/en/latest/rules/multi-buffer-matching.html<br>
+[3] https://docs.suricata.io/en/latest/rules/mdns-keywords.html<br>
+[4] https://docs.suricata.io/en/suricata-7.0.2/rules/multi-buffer-matching.html<br>
+[5] https://docs.suricata.io/en/suricata-7.0.2/rules/multi-buffer-matching.html<br>
+[6] https://docs.suricata.io/en/latest/rules/multi-buffer-matching.html<br>
+[7] https://docs.suricata.io/en/suricata-7.0.3/rules/http-keywords.html<br>
+[8] https://gregorykelleher.com/nginx_security<br>
