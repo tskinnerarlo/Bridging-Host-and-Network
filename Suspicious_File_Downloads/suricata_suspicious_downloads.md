@@ -48,7 +48,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (
 
 - ```http.uri``` + ```pcre``` looks for ***file extensions*** at ***URI end*** (allows query strings via ```(?:\?|$))```.
 
-- Keeping the checks in separate sticky buffers avoids false matches across fields. (see notes about new suricata 7 behavior with sticky buffers)
+- Keeping the checks in separate sticky buffers avoids false matches across fields. (see notes about new suricata 7 behavior with sticky buffers - https://github.com/tskinnerarlo/Bridging-Host-and-Network/blob/main/suricata_sticky_buffers.md)
 ---
 
 ## B) TLS/SNI: curl or wget to suspicious TLDs (best-effort)
