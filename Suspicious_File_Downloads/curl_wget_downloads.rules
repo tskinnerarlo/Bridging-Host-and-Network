@@ -1,0 +1,14 @@
+## --- Capture exec of curl / wget (both 64/32-bit) ---
+-a always,exit -F arch=b64 -S execve -F exe=/usr/bin/curl -F auid>=1000 -F auid!=4294967295 -k curl_exec
+-a always,exit -F arch=b32 -S execve -F exe=/usr/bin/curl -F auid>=1000 -F auid!=4294967295 -k curl_exec
+-a always,exit -F arch=b64 -S execve -F exe=/usr/bin/wget -F auid>=1000 -F auid!=4294967295 -k wget_exec
+-a always,exit -F arch=b32 -S execve -F exe=/usr/bin/wget -F auid>=1000 -F auid!=4294967295 -k wget_exec
+
+## --- Capture file creation/writes by curl / wget (download behavior) ---
+# Open for write/create via openat()/creat() by curl
+-a always,exit -F arch=b64 -S openat,creat -F comm=curl -F auid>=1000 -F auid!=4294967295 -F exit>=0 -k curl_write
+-a always,exit -F arch=b32 -S openat,creat -F comm=curl -F auid>=1000 -F auid!=4294967295 -F exit>=0 -k curl_write
+
+# Same for wget
+-a always,exit -F arch=b64 -S openat,creat -F comm=wget -F auid>=1000 -F auid!=4294967295 -F exit>=0 -k wget_write
+-a always,exit -F arch=b32 -S openat,creat -F comm=wget -F auid>=1000 -F auid!=4294967295 -F exit>=0 -k wget_write
