@@ -1,0 +1,35 @@
+# Suricata custom rules for suspicious TLD file downloads via curl/wget
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"HTTP curl file download from suspicious TLD";
+    flow:established,to_server;
+    http.method; content:"GET";
+    http.user_agent; content:"curl/"; nocase;
+    http.host; pcre:"/\.(ru|cn|su|tk|top|xyz|zip|click|pw)$/Ri";
+    http.uri;  pcre:"/\.(exe|dll|ps1|bat|js|sh|py|zip|tar(?:\.gz)?|tgz|xz|deb|rpm|apk|msi)(?:\?|$)/Ri";
+    classtype:policy-violation;
+    metadata: attack_target Client, created_at 2025_08_26, mitre_tactic Execution, mitre_technique_id T1204;
+    sid:100001; rev:1;
+)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"HTTP Wget file download from suspicious TLD";
+    flow:established,to_server;
+    http.method; content:"GET";
+    http.user_agent; content:"Wget/"; nocase;
+    http.host; pcre:"/\.(ru|cn|su|tk|top|xyz|zip|click|pw)$/Ri";
+    http.uri;  pcre:"/\.(exe|dll|ps1|bat|js|sh|py|zip|tar(?:\.gz)?|tgz|xz|deb|rpm|apk|msi)(?:\?|$)/Ri";
+    classtype:policy-violation;
+    metadata: attack_target Client, created_at 2025_08_26, mitre_tactic Execution, mitre_technique_id T1204;
+    sid:100002; rev:1;
+)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"TLS SNI to suspicious TLD";
+    flow:established,to_server;
+    tls.sni; pcre:"/\.(ru|cn|su|tk|top|xyz|zip|click|pw)$/Ri";
+    tls.version:1.0-1.3;
+    classtype:policy-violation;
+    metadata: created_at 2025_08_26, confidence Moderate, note "Cannot see file names over TLS";
+    sid:100003; rev:1;
+)
