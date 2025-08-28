@@ -1,0 +1,71 @@
+<Sysmon schemaversion="4.50">
+  <EventFiltering>
+
+    <!-- =========================
+         1) PROCESS CREATE (Event ID 1)
+         Detect curl/wget invoked with suspicious TLDs, optionally with risky extensions in the URL
+         ========================= -->
+    <ProcessCreate onmatch="include">
+
+      <!-- curl + suspicious TLD + risky extension (strongest signal) -->
+      <RuleGroup name="Curl_SuspiciousTLD_RiskyExt" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <!-- TLD tokens; keep narrow to reduce FPs -->
+        <CommandLine condition="contains any">.ru/|.cn/|.su/|.tk/|.top/|.xyz/|.zip/|.click/|.pw/</CommandLine>
+        <!-- Risky extensions; presence in URL path -->
+        <CommandLine condition="contains any">.exe|.dll|.ps1|.bat|.js|.sh|.py|.zip|.tar.gz|.tgz|.xz|.deb|.rpm|.apk|.msi</CommandLine>
+      </RuleGroup>
+
+      <!-- wget + suspicious TLD + risky extension -->
+      <RuleGroup name="Wget_SuspiciousTLD_RiskyExt" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <CommandLine condition="contains any">.ru/|.cn/|.su/|.tk/|.top/|.xyz/|.zip/|.click/|.pw/</CommandLine>
+        <CommandLine condition="contains any">.exe|.dll|.ps1|.bat|.js|.sh|.py|.zip|.tar.gz|.tgz|.xz|.deb|.rpm|.apk|.msi</CommandLine>
+      </RuleGroup>
+
+      <!-- curl + suspicious TLD (no extension requirement; broader) -->
+      <RuleGroup name="Curl_SuspiciousTLD" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <CommandLine condition="contains any">.ru/|.cn/|.su/|.tk/|.top/|.xyz/|.zip/|.click/|.pw/</CommandLine>
+      </RuleGroup>
+
+      <!-- wget + suspicious TLD (no extension requirement; broader) -->
+      <RuleGroup name="Wget_SuspiciousTLD" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <CommandLine condition="contains any">.ru/|.cn/|.su/|.tk/|.top/|.xyz/|.zip/|.click/|.pw/</CommandLine>
+      </RuleGroup>
+    </ProcessCreate>
+
+    <!-- =========================
+         2) NETWORK CONNECT (Event ID 3)
+         curl/wget connecting where DestinationHostname contains suspicious TLD
+         (best-effort: relies on hostname; IP-only connections won’t match)
+         ========================= -->
+    <NetworkConnect onmatch="include">
+      <RuleGroup name="Curl_DestHost_SuspiciousTLD" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <DestinationHostname condition="contains any">.ru|.cn|.su|.tk|.top|.xyz|.zip|.click|.pw</DestinationHostname>
+      </RuleGroup>
+      <RuleGroup name="Wget_DestHost_SuspiciousTLD" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <DestinationHostname condition="contains any">.ru|.cn|.su|.tk|.top|.xyz|.zip|.click|.pw</DestinationHostname>
+      </RuleGroup>
+    </NetworkConnect>
+
+    <!-- =========================
+         3) FILE CREATE (Event ID 11)
+         Files created by curl/wget with risky extensions (download behavior)
+         ========================= -->
+    <FileCreate onmatch="include">
+      <RuleGroup name="Curl_File_RiskyExt" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <TargetFilename condition="contains any">.exe|.dll|.ps1|.bat|.js|.sh|.py|.zip|.tar.gz|.tgz|.xz|.deb|.rpm|.apk|.msi</TargetFilename>
+      </RuleGroup>
+      <RuleGroup name="Wget_File_RiskyExt" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <TargetFilename condition="contains any">.exe|.dll|.ps1|.bat|.js|.sh|.py|.zip|.tar.gz|.tgz|.xz|.deb|.rpm|.apk|.msi</TargetFilename>
+      </RuleGroup>
+    </FileCreate>
+
+  </EventFiltering>
+</Sysmon>
