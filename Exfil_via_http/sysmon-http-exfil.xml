@@ -1,0 +1,68 @@
+<Sysmon schemaversion="4.50">
+  <EventFiltering>
+
+    <!-- ===========================================================
+         1) PROCESS CREATE (Event ID 1)
+         Primary signal: detect curl/wget invoked with:
+           - uncommon/“write-like” HTTP verbs (PUT, PATCH, WebDAV)
+           - upload flags (data-binary @file, post-file/body-file, multipart form)
+         =========================================================== -->
+    <ProcessCreate onmatch="include">
+
+      <!-- curl + uncommon verb + evidence of a request body -->
+      <RuleGroup name="Curl_UncommonVerb_WithBody" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <!-- Uncommon/administrative verbs -->
+        <CommandLine condition="contains any">-X PUT|--request PUT|-X PATCH|--request PATCH|-X PROPFIND|--request PROPFIND|-X PROPPATCH|--request PROPPATCH|-X MKCOL|--request MKCOL|-X REPORT|--request REPORT|-X SEARCH|--request SEARCH|-X COPY|--request COPY|-X MOVE|--request MOVE|-X TRACE|--request TRACE</CommandLine>
+        <!-- Signs there is a body being sent -->
+        <CommandLine condition="contains any">--data-binary|--data|-d |--upload-file|-T|-F|--form</CommandLine>
+      </RuleGroup>
+
+      <!-- wget + uncommon verb + evidence of a request body -->
+      <RuleGroup name="Wget_UncommonVerb_WithBody" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <CommandLine condition="contains any">--method=PUT|--method=PATCH|--method=PROPFIND|--method=PROPPATCH|--method=MKCOL|--method=REPORT|--method=SEARCH|--method=COPY|--method=MOVE|--method=TRACE</CommandLine>
+        <!-- Wget upload indicators -->
+        <CommandLine condition="contains any">--body-file=|--post-file=|--header=Content-Length|--header=Transfer-Encoding: chunked</CommandLine>
+      </RuleGroup>
+
+      <!-- curl heuristic for large/binary POST-like transfers -->
+      <RuleGroup name="Curl_LargePOST_Heuristic" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <!-- Explicit file upload flags -->
+        <CommandLine condition="contains any">--data-binary @|-d @|--upload-file|-T</CommandLine>
+        <!-- Optional: “binary-ish” content type often used during bulk uploads -->
+        <CommandLine condition="contains any">application/octet-stream</CommandLine>
+      </RuleGroup>
+
+      <!-- wget heuristic for large/binary POST-like transfers -->
+      <RuleGroup name="Wget_LargePOST_Heuristic" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <CommandLine condition="contains any">--body-file=|--post-file=</CommandLine>
+      </RuleGroup>
+
+      <!-- curl multipart form upload (file=@path) -->
+      <RuleGroup name="Curl_MultipartUpload" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <CommandLine condition="contains">-F</CommandLine>
+        <CommandLine condition="contains">@</CommandLine>
+      </RuleGroup>
+    </ProcessCreate>
+
+    <!-- ===========================================================
+         2) NETWORK CONNECT (Event ID 3) — Context signal
+         Connections initiated by curl/wget (helps triage/sequence the action).
+         =========================================================== -->
+    <NetworkConnect onmatch="include">
+      <RuleGroup name="Curl_Egress" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <Initiated condition="is">true</Initiated>
+      </RuleGroup>
+      <RuleGroup name="Wget_Egress" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <Initiated condition="is">true</Initiated>
+      </RuleGroup>
+    </NetworkConnect>
+
+  </EventFiltering>
+</Sysmon>
