@@ -80,3 +80,105 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (
 - Large POSTs are a classic signature of bulk data leaving the host (e.g., db dumps, archives). Header-based size checks are cheap and work regardless of TLS; you’re inspecting the request from the client → server side before encryption on some sensors or after decryption on proxies (depending on placement).
 
 - **Multipart with** ```filename=``` is a strong indicator of a file upload via HTML forms or programmatic clients.
+
+**Make sure HTTP bodies are inspected**
+
+In suricata.yaml, confirm/request-body inspection is enabled and not too small:
+```yaml
+app-layer:
+  protocols:
+    http:
+      enabled: yes
+      request-body: yes
+      response-body: no
+
+# In the libhtp section (names vary by version):
+libhtp:
+  default-config:
+    request-body-limit: 0         # 0 = unlimited (or set >= size you care about, e.g., 10485760 for 10MB)
+    request-body-minimal-inspect-size: 32768
+    request-body-inspect-window: 4096
+```
+(If the request-body is truncated below your thresholds, the multipart rule still works, but the large POST rule relies on headers—so it will still fire.)
+
+## How to test (offline-safe)
+**0) Minimal local HTTP receiver (accepts POST, PUT, weird verbs)**
+
+Use Python’s stdlib:
+```bash
+cat > /tmp/post_server.py <<'PY'
+from http.server import BaseHTTPRequestHandler, HTTPServer
+class H(BaseHTTPRequestHandler):
+    def _ok(self):
+        self.send_response(200); self.end_headers(); self.wfile.write(b'OK')
+    def do_POST(self): self.rfile.read(int(self.headers.get('Content-Length','0'))); self._ok()
+    def do_PUT(self):  self.rfile.read(int(self.headers.get('Content-Length','0'))); self._ok()
+    def do_PATCH(self): self.rfile.read(int(self.headers.get('Content-Length','0'))); self._ok()
+    def do_PROPFIND(self): self._ok()
+    def do_PROPPATCH(self): self._ok()
+    def do_MKCOL(self): self._ok()
+    def do_REPORT(self): self._ok()
+    def do_SEARCH(self): self._ok()
+    def do_TRACE(self): self._ok()
+HTTPServer(("0.0.0.0", 8088), H).serve_forever()
+PY
+python3 /tmp/post_server.py
+```
+Run Suricata on the interface that sees this traffic (e.g., lo for local tests), with your new http_exfil.rules loaded.
+
+**A) Fire the uncommon verb rule (sid:200101)**
+```bash
+# Any of these will do (each should trigger 200101):
+curl -X PROPFIND http://127.0.0.1:8088/
+curl -X PATCH -d 'x=1' http://127.0.0.1:8088/patch
+curl -X PUT --data-binary @/etc/hosts http://127.0.0.1:8088/put
+```
+
+**Check alerts:**
+```bash
+jq 'select(.alert and .alert.signature_id==200101) | {ts: .timestamp, src:.src_ip, dst:.dest_ip, sig:.alert.signature}' \
+  /var/log/suricata/eve.json
+```
+
+**B) Fire the large POST (~≥1MB) rule (sid:200102)**
+```bash
+# Create a ~2MB blob
+dd if=/dev/zero of=/tmp/big.bin bs=1M count=2 status=none
+
+# Send it (Content-Length will be ~2,097,152)
+curl -X POST --data-binary @/tmp/big.bin http://127.0.0.1:8088/upload
+```
+**Verfy:**
+```bash
+jq 'select(.alert and .alert.signature_id==200102) | {ts:.timestamp, len:(.http.http_request_headers[]? | select(.name=="Content-Length") | .value), sig:.alert.signature}' \
+  /var/log/suricata/eve.json
+```
+**C) Fire the multipart filename= rule (sid:200103)**
+```bash
+# Multipart POST with a real filename field
+curl -F "file=@/etc/hosts" http://127.0.0.1:8088/form
+```
+**Verfy:**
+```bash
+jq 'select(.alert and .alert.signature_id==200103) | {ts:.timestamp, sig:.alert.signature}' /var/log/suricata/eve.json
+```
+D) Fire the octet-stream 100KB+ rule (sid:200104)
+```bash
+dd if=/dev/urandom of=/tmp/100k.bin bs=100K count=1 status=none
+curl -X POST -H "Content-Type: application/octet-stream" --data-binary @/tmp/100k.bin http://127.0.0.1:8088/bulk
+```
+**Verfy:**
+```bash
+jq 'select(.alert and .alert.signature_id==200104) | {ts:.timestamp, sig:.alert.signature}' /var/log/suricata/eve.json
+```
+
+## Tuning & hardening tips
+- Allow-lists: Prepend an exclude rule group for known-good hosts or paths (backup agents, artifact repos) to suppress noise.
+
+- Thresholding: Already included to reduce alert storms. Adjust ```seconds```/```count``` to fit traffic volume.
+
+- Chunked uploads: If your environment uses ```Transfer-Encoding: chunked```, header size isn’t present. Consider flagging ```POST``` + ```Transfer-Encoding: chunked``` + ```multipart/form-data``` as a medium-confidence signal.
+
+- Placement: You’ll see the most with sensors closest to the clients (before proxy/TLS) or after TLS interception on egress proxies.
+
+- Correlate with DNS, proxy logs, and host EDR (who launched curl? what data left?).
