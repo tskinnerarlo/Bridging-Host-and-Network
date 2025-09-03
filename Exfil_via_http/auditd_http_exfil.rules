@@ -1,0 +1,21 @@
+###############################################################################
+# A) EXECVE: capture curl/wget invocations by interactive users
+#    - Lets you see command line (EXECVE/PROCTITLE) to spot verbs like PUT/PATCH
+###############################################################################
+-a always,exit -F arch=b64 -S execve -F exe=/usr/bin/curl -F auid>=1000 -F auid!=4294967295 -k http_exec_curl
+-a always,exit -F arch=b32 -S execve -F exe=/usr/bin/curl -F auid>=1000 -F auid!=4294967295 -k http_exec_curl
+-a always,exit -F arch=b64 -S execve -F exe=/usr/bin/wget -F auid>=1000 -F auid!=4294967295 -k http_exec_wget
+-a always,exit -F arch=b32 -S execve -F exe=/usr/bin/wget -F auid>=1000 -F auid!=4294967295 -k http_exec_wget
+
+###############################################################################
+# B) SEND SIZE: flag large network sends from curl/wget (exfil indicator)
+#    - sendto/sendmsg a2 = length (bytes). Trigger when >= 100 KB (tune as needed)
+###############################################################################
+-a always,exit -F arch=b64 -S sendto,sendmsg -F comm=curl -F a2>=100000 -F auid>=1000 -F auid!=4294967295 -k http_large_send_curl
+-a always,exit -F arch=b32 -S sendto,sendmsg -F comm=curl -F a2>=100000 -F auid>=1000 -F auid!=4294967295 -k http_large_send_curl
+-a always,exit -F arch=b64 -S sendto,sendmsg -F comm=wget -F a2>=100000 -F auid>=1000 -F auid!=4294967295 -k http_large_send_wget
+-a always,exit -F arch=b32 -S sendto,sendmsg -F comm=wget -F a2>=100000 -F auid>=1000 -F auid!=4294967295 -k http_large_send_wget
+
+# Optional: stricter “very large” threshold (≈1 MB) for higher confidence
+-a always,exit -F arch=b64 -S sendto,sendmsg -F comm=curl -F a2>=1048576 -F auid>=1000 -F auid!=4294967295 -k http_very_large_send_curl
+-a always,exit -F arch=b64 -S sendto,sendmsg -F comm=wget -F a2>=1048576 -F auid>=1000 -F auid!=4294967295 -k http_very_large_send_wget
