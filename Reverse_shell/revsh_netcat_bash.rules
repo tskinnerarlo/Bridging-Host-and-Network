@@ -17,8 +17,8 @@
 -a always,exit -F arch=b32 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/usr/bin/netcat -k revshell_nc_exec
 
 ## Busybox's nc (optional; comment out if not relevant)
--a always,exit -F arch=b64 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/bin/busybox -k revshell_busybox_exec
--a always,exit -F arch=b32 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/bin/busybox -k revshell_busybox_exec
+#-a always,exit -F arch=b64 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/bin/busybox -k revshell_busybox_exec
+#-a always,exit -F arch=b32 -S execve -F uid>=1000 -F uid!=4294967295 -F exe=/bin/busybox -k revshell_busybox_exec
 
 ## ----- Network connect() calls made by suspicious processes -----
 ## This specifically catches the moment a reverse shell dials out.
