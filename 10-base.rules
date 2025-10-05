@@ -1,0 +1,51 @@
+#/etc/audit/rules.d/10-base.rules 
+#(tuned for PSA-style “who changed what & when” without going overboard)
+
+# Reset existing rules, set backlog and failure mode
+-D
+-b 8192
+-f 1
+
+## --- Identity & auth storefronts ---
+-w /etc/passwd   -p wa -k identity
+-w /etc/shadow   -p wa -k identity
+-w /etc/group    -p wa -k identity
+-w /etc/gshadow  -p wa -k identity
+-w /etc/sudoers  -p wa -k sudoers
+-w /etc/sudoers.d/ -p wa -k sudoers
+
+## --- SSH & security-critical configs ---
+-w /etc/ssh/sshd_config -p wa -k sshd
+-w /etc/pam.d/ -p wa -k pam
+-w /etc/security/ -p wa -k security-conf
+
+## --- Time changes (privilege & incident investigations) ---
+-a always,exit -F arch=b64 -S adjtimex,settimeofday,clock_settime -k time-change
+-a always,exit -F arch=b32 -S adjtimex,settimeofday,clock_settime -k time-change
+-w /etc/localtime -p wa -k time-change
+
+## --- Kernel module loads/unloads ---
+-a always,exit -F arch=b64 -S init_module,delete_module -k modules
+-a always,exit -F arch=b32 -S init_module,delete_module -k modules
+
+## --- Mount operations ---
+-a always,exit -F arch=b64 -S mount,umount2 -k mounts
+-a always,exit -F arch=b32 -S mount,umount2 -k mounts
+
+## --- Network environment changes ---
+-w /etc/hosts -p wa -k network
+-w /etc/hostname -p wa -k network
+-w /etc/resolv.conf -p wa -k network
+
+## --- Privilege use (successful/failed) ---
+#-w /var/log/sudo.log -p wa -k sudo-log  # if present (on some systems)
+-a always,exit -F arch=b64 -S setuid,setgid,setfsuid,setfsgid -k priv-change
+-a always,exit -F arch=b32 -S setuid,setgid,setfsuid,setfsgid -k priv-change
+
+## --- Optional: Process exec visibility (heavier) ---
+# Uncomment if you want broad exec tracking (more volume).
+#-a always,exit -F arch=b64 -S execve,execveat -k exec
+#-a always,exit -F arch=b32 -S execve,execveat -k exec
+
+## --- Lock rules after validation (add only when you’re happy) ---
+# -e 2
