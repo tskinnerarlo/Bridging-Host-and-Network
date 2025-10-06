@@ -12,6 +12,14 @@ Create /etc/audit/rules.d/revsh_netcat_bash.rules with the rule file from this r
 
 • Paths for nc/netcat vary; keep the ones you have and delete the rest.
 
+* Initially I wrote these rules using ```uid``` and changed to using ```auid```, one reason is that auditd on ubuntu 20.04 didn't seem to recognize uid (maybe it was an old capability) and would error on the rules and not start until I changed to using ```auid```. Here is the difference between ```uid``` and ```auid```:
+
+    * uid = effective UID at the moment of the syscall (can be 0 under sudo).
+
+    * auid = original login ID (sticky across privilege changes).
+
+    * For security auditing (who initiated it), auid is usually preferred. Using uid can miss or misattribute activity done via sudo/setuid.
+
 <br>**Load and Verify the rules**
 
 ```
