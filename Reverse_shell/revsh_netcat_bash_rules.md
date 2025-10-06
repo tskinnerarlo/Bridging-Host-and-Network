@@ -22,10 +22,16 @@ Create /etc/audit/rules.d/revsh_netcat_bash.rules with the rule file from this r
 
 <br>**Load and Verify the rules**
 
-```
+```bash
 sudo augenrules --load
 sudo auditctl -l | egrep 'revshell|busybox|ncat|netcat|bash'
 ```
+<br>**Restart auditd service**
+
+```bash
+systemctl restart auditd
+```
+
 
 <br>**Why these rules work (logic)**
 
