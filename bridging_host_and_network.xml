@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Sysmon schemaversion="4.80">
+  <EventFiltering>
+
+    <!-- =======================
+         PROCESS CREATION (Event ID 1)
+         ======================= -->
+
+    <!-- A. netcat/ncat launched with exec flags (-e/--exec/-c/--sh-exec) -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/nc</Image>
+      <CommandLine condition="contains any">-e,--exec,-c,--sh-exec</CommandLine>
+    </ProcessCreate>
+
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/ncat</Image>
+      <CommandLine condition="contains any">-e,--exec,-c,--sh-exec</CommandLine>
+    </ProcessCreate>
+
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/netcat</Image>
+      <CommandLine condition="contains any">-e,--exec,-c,--sh-exec</CommandLine>
+    </ProcessCreate>
+
+    <!-- BusyBox applet case: "busybox nc ..." with exec flags -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/busybox</Image>
+      <CommandLine condition="contains any"> busybox nc , busybox ncat , busybox netcat </CommandLine>
+      <CommandLine condition="contains any">-e,--exec,-c,--sh-exec</CommandLine>
+    </ProcessCreate>
+
+    <!-- B. Parent/child chain: netcat spawns an interactive shell -->
+    <ProcessCreate onmatch="include">
+      <ParentImage condition="end with">/nc</ParentImage>
+      <Image condition="end with">/bash</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <ParentImage condition="end with">/ncat</ParentImage>
+      <Image condition="end with">/bash</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <ParentImage condition="end with">/netcat</ParentImage>
+      <Image condition="end with">/bash</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <ParentImage condition="end with">/busybox</ParentImage>
+      <ParentCommandLine condition="contains any"> busybox nc , busybox ncat , busybox netcat </ParentCommandLine>
+      <Image condition="end with">/bash</Image>
+    </ProcessCreate>
+
+    <!-- C. bash launched explicitly interactive (often used in rev shells) -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/bash</Image>
+      <CommandLine condition="contains"> -i </CommandLine>
+    </ProcessCreate>
+
+    <!-- D. bash using /dev/tcp (classic one-liner) -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/bash</Image>
+      <CommandLine condition="contains">/dev/tcp/</CommandLine>
+    </ProcessCreate>
+
+    <!-- =========================
+         1) PROCESS CREATE (Event ID 1)
+         Detect curl/wget invoked with suspicious TLDs, optionally with risky extensions in the URL
+         ========================= -->
+    <ProcessCreate onmatch="include">
+
+      <!-- curl + suspicious TLD + risky extension (strongest signal) -->
+      <RuleGroup name="Curl_SuspiciousTLD_RiskyExt" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <!-- TLD tokens; keep narrow to reduce FPs -->
+        <CommandLine condition="contains any">.ru/|.cn/|.su/|.tk/|.top/|.xyz/|.zip/|.click/|.pw/</CommandLine>
+        <!-- Risky extensions; presence in URL path -->
+        <CommandLine condition="contains any">.exe|.dll|.ps1|.bat|.js|.sh|.py|.zip|.tar.gz|.tgz|.xz|.deb|.rpm|.apk|.msi</CommandLine>
+      </RuleGroup>
+
+      <!-- wget + suspicious TLD + risky extension -->
+      <RuleGroup name="Wget_SuspiciousTLD_RiskyExt" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <CommandLine condition="contains any">.ru/|.cn/|.su/|.tk/|.top/|.xyz/|.zip/|.click/|.pw/</CommandLine>
+        <CommandLine condition="contains any">.exe|.dll|.ps1|.bat|.js|.sh|.py|.zip|.tar.gz|.tgz|.xz|.deb|.rpm|.apk|.msi</CommandLine>
+      </RuleGroup>
+
+      <!-- curl + suspicious TLD (no extension requirement; broader) -->
+      <RuleGroup name="Curl_SuspiciousTLD" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <CommandLine condition="contains any">.ru/|.cn/|.su/|.tk/|.top/|.xyz/|.zip/|.click/|.pw/</CommandLine>
+      </RuleGroup>
+
+      <!-- wget + suspicious TLD (no extension requirement; broader) -->
+      <RuleGroup name="Wget_SuspiciousTLD" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <CommandLine condition="contains any">.ru/|.cn/|.su/|.tk/|.top/|.xyz/|.zip/|.click/|.pw/</CommandLine>
+      </RuleGroup>
+    </ProcessCreate>
+
+    <!-- ===========================================================
+         PROCESS CREATE (Event ID 1)
+         Capture execution context for common C2/upload tools and
+         anything launched from temp-like dirs (living-off-the-land).
+         =========================================================== -->
+    <ProcessCreate onmatch="include">
+
+      <!-- Net/transfer tooling frequently used in staging/exfil -->
+      <RuleGroup name="NetTools_Exec" groupRelation="or">
+        <Image condition="end with">/curl</Image>
+        <Image condition="end with">/wget</Image>
+        <Image condition="end with">/python</Image>
+        <Image condition="end with">/python3</Image>
+        <Image condition="end with">/openssl</Image>
+        <Image condition="end with">/socat</Image>
+        <Image condition="end with">/ncat</Image>
+        <Image condition="end with">/nc</Image>
+      </RuleGroup>
+
+      <!-- Suspicious execution locations -->
+      <RuleGroup name="Tmp_Exec" groupRelation="and">
+        <Image condition="contains any">/tmp/|/dev/shm/|/var/tmp/</Image>
+      </RuleGroup>
+
+      <!-- Heuristic: obvious upload/HTTP flags (helps triage) -->
+      <RuleGroup name="Upload_Flags" groupRelation="and">
+        <CommandLine condition="contains any">--data-binary @|-d @|--upload-file|-T|-F|--form|https://</CommandLine>
+      </RuleGroup>
+    </ProcessCreate>
+
+    <!-- ===========================================================
+         1) PROCESS CREATE (Event ID 1)
+         Primary signal: detect curl/wget invoked with uncommon verbs or upload indicators
+         =========================================================== -->
+    <ProcessCreate onmatch="include">
+
+      <!-- curl + uncommon verb + evidence of a request body -->
+      <RuleGroup name="Curl_UncommonVerb_WithBody" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <!-- Uncommon/administrative verbs -->
+        <CommandLine condition="contains any">-X PUT|--request PUT|-X PATCH|--request PATCH|-X PROPFIND|--request PROPFIND|-X PROPPATCH|--request PROPPATCH|-X MKCOL|--request MKCOL|-X REPORT|--request REPORT|-X SEARCH|--request SEARCH|-X COPY|--request COPY|-X MOVE|--request MOVE|-X TRACE|--request TRACE</CommandLine>
+        <!-- Signs there is a body being sent -->
+        <CommandLine condition="contains any">--data-binary|--data|-d |--upload-file|-T|-F|--form</CommandLine>
+      </RuleGroup>
+
+      <!-- wget + uncommon verb + evidence of a request body -->
+      <RuleGroup name="Wget_UncommonVerb_WithBody" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <CommandLine condition="contains any">--method=PUT|--method=PATCH|--method=PROPFIND|--method=PROPPATCH|--method=MKCOL|--method=REPORT|--method=SEARCH|--method=COPY|--method=MOVE|--method=TRACE</CommandLine>
+        <!-- Wget upload indicators -->
+        <CommandLine condition="contains any">--body-file=|--post-file=|--header=Content-Length|--header=Transfer-Encoding: chunked</CommandLine>
+      </RuleGroup>
+
+      <!-- curl heuristic for large/binary POST-like transfers -->
+      <RuleGroup name="Curl_LargePOST_Heuristic" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <!-- Explicit file upload flags -->
+        <CommandLine condition="contains any">--data-binary @|-d @|--upload-file|-T</CommandLine>
+        <!-- Optional: “binary-ish” content type often used during bulk uploads -->
+        <CommandLine condition="contains any">application/octet-stream</CommandLine>
+      </RuleGroup>
+
+      <!-- wget heuristic for large/binary POST-like transfers -->
+      <RuleGroup name="Wget_LargePOST_Heuristic" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <CommandLine condition="contains any">--body-file=|--post-file=</CommandLine>
+      </RuleGroup>
+
+      <!-- curl multipart form upload (file=@path) -->
+      <RuleGroup name="Curl_MultipartUpload" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <CommandLine condition="contains">-F</CommandLine>
+        <CommandLine condition="contains">@</CommandLine>
+      </RuleGroup>
+    </ProcessCreate>
+
+    <!-- =======================
+         NETWORK CONNECT (Event ID 3)
+         ======================= -->
+
+    <!-- E. Outbound connects made by netcat variants -->
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/nc</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/ncat</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/netcat</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/busybox</Image>
+      <CommandLine condition="contains any"> busybox nc , busybox ncat , busybox netcat </CommandLine>
+    </NetworkConnect>
+
+    <!-- F. Outbound connects made by bash itself (via /dev/tcp) -->
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/bash</Image>
+      <!-- Optional: ignore loopback to cut noise -->
+      <DestinationIp condition="is not">127.0.0.1</DestinationIp>
+      <DestinationHostname condition="is not">localhost</DestinationHostname>
+    </NetworkConnect>
+
+    <!-- =========================
+         2) NETWORK CONNECT (Event ID 3)
+         curl/wget connecting where DestinationHostname contains suspicious TLD
+         ========================= -->
+    <NetworkConnect onmatch="include">
+      <RuleGroup name="Curl_DestHost_SuspiciousTLD" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <DestinationHostname condition="contains any">.ru|.cn|.su|.tk|.top|.xyz|.zip|.click|.pw</DestinationHostname>
+      </RuleGroup>
+      <RuleGroup name="Wget_DestHost_SuspiciousTLD" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <DestinationHostname condition="contains any">.ru|.cn|.su|.tk|.top|.xyz|.zip|.click|.pw</DestinationHostname>
+      </RuleGroup>
+    </NetworkConnect>
+
+    <!-- ===========================================================
+         NETWORK CONNECT (Event ID 3)
+         Attribute outbound connections to the originating process.
+         =========================================================== -->
+    <NetworkConnect onmatch="include">
+
+      <!-- Any egress from our short list of net tools -->
+      <RuleGroup name="NetTools_Egress_Curl" groupRelation="and">
+        <Initiated condition="is">true</Initiated>
+        <Image condition="end with">/curl</Image>
+      </RuleGroup>
+      <RuleGroup name="NetTools_Egress_Wget" groupRelation="and">
+        <Initiated condition="is">true</Initiated>
+        <Image condition="end with">/wget</Image>
+      </RuleGroup>
+      <RuleGroup name="NetTools_Egress_Python3" groupRelation="and">
+        <Initiated condition="is">true</Initiated>
+        <Image condition="end with">/python3</Image>
+      </RuleGroup>
+      <RuleGroup name="NetTools_Egress_OpenSSL" groupRelation="and">
+        <Initiated condition="is">true</Initiated>
+        <Image condition="end with">/openssl</Image>
+      </RuleGroup>
+      <RuleGroup name="NetTools_Egress_Socat" groupRelation="and">
+        <Initiated condition="is">true</Initiated>
+        <Image condition="end with">/socat</Image>
+      </RuleGroup>
+      <RuleGroup name="NetTools_Egress_Ncat" groupRelation="and">
+        <Initiated condition="is">true</Initiated>
+        <Image condition="end with">/ncat</Image>
+      </RuleGroup>
+
+      <!-- Common TLS ports (optional narrowing) -->
+      <RuleGroup name="TLSish_Port_443" groupRelation="and">
+        <Initiated condition="is">true</Initiated>
+        <DestinationPort condition="is">443</DestinationPort>
+      </RuleGroup>
+      <RuleGroup name="TLSish_Port_8443" groupRelation="and">
+        <Initiated condition="is">true</Initiated>
+        <DestinationPort condition="is">8443</DestinationPort>
+      </RuleGroup>
+      <RuleGroup name="TLSish_Port_9443" groupRelation="and">
+        <Initiated condition="is">true</Initiated>
+        <DestinationPort condition="is">9443</DestinationPort>
+      </RuleGroup>
+    </NetworkConnect>
+
+    <!-- =========================
+         3) FILE CREATE (Event ID 11)
+         Files created by curl/wget with risky extensions (download behavior)
+         ========================= -->
+    <FileCreate onmatch="include">
+      <RuleGroup name="Curl_File_RiskyExt" groupRelation="and">
+        <Image condition="end with">/curl</Image>
+        <TargetFilename condition="contains any">.exe|.dll|.ps1|.bat|.js|.sh|.py|.zip|.tar.gz|.tgz|.xz|.deb|.rpm|.apk|.msi</TargetFilename>
+      </RuleGroup>
+      <RuleGroup name="Wget_File_RiskyExt" groupRelation="and">
+        <Image condition="end with">/wget</Image>
+        <TargetFilename condition="contains any">.exe|.dll|.ps1|.bat|.js|.sh|.py|.zip|.tar.gz|.tgz|.xz|.deb|.rpm|.apk|.msi</TargetFilename>
+      </RuleGroup>
+    </FileCreate>
+
+  </EventFiltering>
+</Sysmon>
