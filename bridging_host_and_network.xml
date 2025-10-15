@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Sysmon schemaversion="4.81">
+  <EventFiltering>
+
+    <!-- =======================
+         PROCESS CREATE (Event ID 1)
+         ======================= -->
+
+    <!-- A. netcat/ncat launched with exec flags (-e/--exec/-c/--sh-exec) -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/nc</Image>
+      <CommandLine condition="contains any">-e,--exec,-c,--sh-exec</CommandLine>
+    </ProcessCreate>
+
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/ncat</Image>
+      <CommandLine condition="contains any">-e,--exec,-c,--sh-exec</CommandLine>
+    </ProcessCreate>
+
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/netcat</Image>
+      <CommandLine condition="contains any">-e,--exec,-c,--sh-exec</CommandLine>
+    </ProcessCreate>
+
+    <!-- BusyBox applet case: "busybox nc ..." with exec flags -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/busybox</Image>
+      <CommandLine condition="contains any">busybox nc,busybox ncat,busybox netcat</CommandLine>
+      <CommandLine condition="contains any">-e,--exec,-c,--sh-exec</CommandLine>
+    </ProcessCreate>
+
+    <!-- B. Parent/child chain: netcat spawns an interactive shell -->
+    <ProcessCreate onmatch="include">
+      <ParentImage condition="end with">/nc</ParentImage>
+      <Image condition="end with">/bash</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <ParentImage condition="end with">/ncat</ParentImage>
+      <Image condition="end with">/bash</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <ParentImage condition="end with">/netcat</ParentImage>
+      <Image condition="end with">/bash</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <ParentImage condition="end with">/busybox</ParentImage>
+      <ParentCommandLine condition="contains any">busybox nc,busybox ncat,busybox netcat</ParentCommandLine>
+      <Image condition="end with">/bash</Image>
+    </ProcessCreate>
+
+    <!-- C. bash launched explicitly interactive (often used in rev shells) -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/bash</Image>
+      <CommandLine condition="contains"> -i </CommandLine>
+    </ProcessCreate>
+
+    <!-- D. bash using /dev/tcp (classic one-liner) -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/bash</Image>
+      <CommandLine condition="contains">/dev/tcp/</CommandLine>
+    </ProcessCreate>
+
+    <!-- curl/wget invoked with suspicious TLDs and/or risky extensions -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/curl</Image>
+      <CommandLine condition="contains any">.ru/,.cn/,.su/,.tk/,.top/,.xyz/,.zip/,.click/,.pw/</CommandLine>
+      <CommandLine condition="contains any">.exe,.dll,.ps1,.bat,.js,.sh,.py,.zip,.tar.gz,.tgz,.xz,.deb,.rpm,.apk,.msi</CommandLine>
+    </ProcessCreate>
+
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/wget</Image>
+      <CommandLine condition="contains any">.ru/,.cn/,.su/,.tk/,.top/,.xyz/,.zip/,.click/,.pw/</CommandLine>
+      <CommandLine condition="contains any">.exe,.dll,.ps1,.bat,.js,.sh,.py,.zip,.tar.gz,.tgz,.xz,.deb,.rpm,.apk,.msi</CommandLine>
+    </ProcessCreate>
+
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/curl</Image>
+      <CommandLine condition="contains any">.ru/,.cn/,.su/,.tk/,.top/,.xyz/,.zip/,.click/,.pw/</CommandLine>
+    </ProcessCreate>
+
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/wget</Image>
+      <CommandLine condition="contains any">.ru/,.cn/,.su/,.tk/,.top/,.xyz/,.zip/,.click/,.pw/</CommandLine>
+    </ProcessCreate>
+
+    <!-- Capture execution context for common C2/upload tools -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/curl</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/wget</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/python</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/python3</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/openssl</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/socat</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/ncat</Image>
+    </ProcessCreate>
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/nc</Image>
+    </ProcessCreate>
+
+    <!-- Suspicious execution locations -->
+    <ProcessCreate onmatch="include">
+      <Image condition="contains any">/tmp/,/dev/shm/,/var/tmp/</Image>
+    </ProcessCreate>
+
+    <!-- Heuristic: obvious upload/HTTP flags -->
+    <ProcessCreate onmatch="include">
+      <CommandLine condition="contains any">--data-binary @,-d @,--upload-file,-T,-F,--form,https://</CommandLine>
+    </ProcessCreate>
+
+    <!-- Uncommon HTTP verbs + request bodies -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/curl</Image>
+      <CommandLine condition="contains any">-X PUT,--request PUT,-X PATCH,--request PATCH,-X PROPFIND,--request PROPFIND,-X PROPPATCH,--request PROPPATCH,-X MKCOL,--request MKCOL,-X REPORT,--request REPORT,-X SEARCH,--request SEARCH,-X COPY,--request COPY,-X MOVE,--request MOVE,-X TRACE,--request TRACE</CommandLine>
+      <CommandLine condition="contains any">--data-binary,--data,-d ,--upload-file,-T,-F,--form</CommandLine>
+    </ProcessCreate>
+
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/wget</Image>
+      <CommandLine condition="contains any">--method=PUT,--method=PATCH,--method=PROPFIND,--method=PROPPATCH,--method=MKCOL,--method=REPORT,--method=SEARCH,--method=COPY,--method=MOVE,--method=TRACE</CommandLine>
+      <CommandLine condition="contains any">--body-file=,--post-file=,--header=Content-Length,--header=Transfer-Encoding: chunked</CommandLine>
+    </ProcessCreate>
+
+    <!-- Heuristic: large/binary POST-like transfers -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/curl</Image>
+      <CommandLine condition="contains any">--data-binary @,-d @,--upload-file,-T</CommandLine>
+      <CommandLine condition="contains any">application/octet-stream</CommandLine>
+    </ProcessCreate>
+
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/wget</Image>
+      <CommandLine condition="contains any">--body-file=,--post-file=</CommandLine>
+    </ProcessCreate>
+
+    <!-- curl multipart form upload (file=@path) -->
+    <ProcessCreate onmatch="include">
+      <Image condition="end with">/curl</Image>
+      <CommandLine condition="contains">-F</CommandLine>
+      <CommandLine condition="contains">@</CommandLine>
+    </ProcessCreate>
+
+    <!-- =======================
+         NETWORK CONNECT (Event ID 3)
+         ======================= -->
+
+    <!-- Netcat/busybox egress -->
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/nc</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/ncat</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/netcat</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/busybox</Image>
+    </NetworkConnect>
+
+    <!-- bash via /dev/tcp (ignore loopback to cut noise) -->
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/bash</Image>
+      <DestinationIp condition="is not">127.0.0.1</DestinationIp>
+      <DestinationHostname condition="is not">localhost</DestinationHostname>
+    </NetworkConnect>
+
+    <!-- curl/wget connecting to suspicious TLDs -->
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/curl</Image>
+      <DestinationHostname condition="contains any">.ru,.cn,.su,.tk,.top,.xyz,.zip,.click,.pw</DestinationHostname>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Image condition="end with">/wget</Image>
+      <DestinationHostname condition="contains any">.ru,.cn,.su,.tk,.top,.xyz,.zip,.click,.pw</DestinationHostname>
+    </NetworkConnect>
+
+    <!-- Attribute outbound connections to originating process -->
+    <NetworkConnect onmatch="include">
+      <Initiated condition="is">true</Initiated>
+      <Image condition="end with">/curl</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Initiated condition="is">true</Initiated>
+      <Image condition="end with">/wget</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Initiated condition="is">true</Initiated>
+      <Image condition="end with">/python3</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Initiated condition="is">true</Initiated>
+      <Image condition="end with">/openssl</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Initiated condition="is">true</Initiated>
+      <Image condition="end with">/socat</Image>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Initiated condition="is">true</Initiated>
+      <Image condition="end with">/ncat</Image>
+    </NetworkConnect>
+
+    <!-- Common TLS-ish ports (optional) -->
+    <NetworkConnect onmatch="include">
+      <Initiated condition="is">true</Initiated>
+      <DestinationPort condition="is">443</DestinationPort>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Initiated condition="is">true</Initiated>
+      <DestinationPort condition="is">8443</DestinationPort>
+    </NetworkConnect>
+    <NetworkConnect onmatch="include">
+      <Initiated condition="is">true</Initiated>
+      <DestinationPort condition="is">9443</DestinationPort>
+    </NetworkConnect>
+
+    <!-- =======================
+         FILE CREATE (Event ID 11)
+         ======================= -->
+    <FileCreate onmatch="include">
+      <Image condition="end with">/curl</Image>
+      <TargetFilename condition="contains any">.exe,.dll,.ps1,.bat,.js,.sh,.py,.zip,.tar.gz,.tgz,.xz,.deb,.rpm,.apk,.msi</TargetFilename>
+    </FileCreate>
+    <FileCreate onmatch="include">
+      <Image condition="end with">/wget</Image>
+      <TargetFilename condition="contains any">.exe,.dll,.ps1,.bat,.js,.sh,.py,.zip,.tar.gz,.tgz,.xz,.deb,.rpm,.apk,.msi</TargetFilename>
+    </FileCreate>
+
+  </EventFiltering>
+</Sysmon>
