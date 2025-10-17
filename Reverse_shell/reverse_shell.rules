@@ -1,0 +1,42 @@
+# Created: 2025-10-16
+# Author: Ted Skinner
+#
+# Notes:
+# - Uses `http_client_body` (Suricata 7 keyword). If your build expects `http.request_body`,
+#   swap the keyword accordingly.
+# - Validate with: sudo suricata -T -c /etc/suricata/suricata.yaml -S /etc/suricata/rules/reverse_shell.rules
+# - Deploy by adding this file to rule-files in suricata.yaml or merging via suricata-update.
+# ------------------------------------------------------------------------------
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"POSSIBLE RCE: bash TCP reverse shell command in HTTP request";
+  flow:to_server,established;
+  http_client_body;
+  content:"bash -i"; nocase;
+  http_client_body; content:"/dev/tcp/"; nocase;
+  http_client_body; content:"0>&1"; nocase;
+  classtype:attempted-admin;
+  metadata:attack_target Server, created_at 2025_08_18;
+  sid:2100001; rev:3;
+)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"POSSIBLE RCE: netcat reverse shell flags in HTTP request";
+  flow:to_server,established;
+  http_client_body; content:"nc "; nocase;
+  http_client_body; content:" -e "; nocase; within:10;
+  classtype:attempted-admin;
+  metadata:attack_target Server, created_at 2025_08_18;
+  sid:2100002; rev:3;
+)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+  msg:"POSSIBLE RCE: ncat exec reverse shell flags in HTTP request";
+  flow:to_server,established;
+  http_client_body; content:"ncat "; nocase;
+  http_client_body; content:" --exec "; nocase; within:20;
+  classtype:attempted-admin;
+  metadata:attack_target Server, created_at 2025_08_18;
+  sid:2100003; rev:3;
+)
+
