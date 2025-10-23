@@ -1,35 +1,25 @@
-# Suricata custom rules for suspicious TLD file downloads via curl/wget
+# suspicious_downloads.v3.rules (Suricata 7.0.7)
+# Fixes: replace http.response_headers (unknown in your build) with http.header,
+#        use built-in classtype, keep sticky-buffer semantics.
+# Notes:
+#  - http.header works for both request and response headers; we constrain with flow:to_client.
+#  - If 'filemagic' isn't available, you can use the commented MZ fallback rule below.
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (
-    msg:"HTTP curl file download from suspicious TLD";
-    flow:established,to_server;
-    http.method; content:"GET";
-    http.user_agent; content:"curl/"; nocase;
-    http.host; pcre:"/\.(ru|cn|su|tk|top|xyz|zip|click|pw)$/Ri";
-    http.uri;  pcre:"/\.(exe|dll|ps1|bat|js|sh|py|zip|tar(?:\.gz)?|tgz|xz|deb|rpm|apk|msi)(?:\?|$)/Ri";
-    classtype:policy-violation;
-    metadata: attack_target Client, created_at 2025_08_26, mitre_tactic Execution, mitre_technique_id T1204;
-    sid:100001; rev:1;
-)
+# 1) Windows PE over HTTP (preferred: filemagic)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Suspicious download: Windows PE executable over HTTP";flow:to_client,established;filemagic:"^PE32";classtype:potentially-bad-traffic;metadata:attack_target Client, deployment Perimeter;sid:2501301; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (
-    msg:"HTTP Wget file download from suspicious TLD";
-    flow:established,to_server;
-    http.method; content:"GET";
-    http.user_agent; content:"Wget/"; nocase;
-    http.host; pcre:"/\.(ru|cn|su|tk|top|xyz|zip|click|pw)$/Ri";
-    http.uri;  pcre:"/\.(exe|dll|ps1|bat|js|sh|py|zip|tar(?:\.gz)?|tgz|xz|deb|rpm|apk|msi)(?:\?|$)/Ri";
-    classtype:policy-violation;
-    metadata: attack_target Client, created_at 2025_08_26, mitre_tactic Execution, mitre_technique_id T1204;
-    sid:100002; rev:1;
-)
+#    Fallback for builds without libmagic support (comment out rule above if needed)
+# alert http $EXTERNAL_NET any -> $HOME_NET any (
+#   msg:"Suspicious download: Windows PE executable over HTTP (MZ header)";
+#   flow:to_client,established;
+#   http.response_body; content:"MZ"; depth:2;
+#   classtype:potentially-bad-traffic;
+#   metadata:attack_target Client, deployment Perimeter;
+#   sid:2501301; rev:2;
+# )
 
-alert tls $HOME_NET any -> $EXTERNAL_NET any (
-    msg:"TLS SNI to suspicious TLD";
-    flow:established,to_server;
-    tls.sni; pcre:"/\.(ru|cn|su|tk|top|xyz|zip|click|pw)$/Ri";
-    tls.version:1.0-1.3;
-    classtype:policy-violation;
-    metadata: created_at 2025_08_26, confidence Moderate, note "Cannot see file names over TLS";
-    sid:100003; rev:1;
-)
+# 2) Attachment with executable extensions via Content-Disposition filename=
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Suspicious download: attachment with executable extension";flow:to_client,established;http.header; content:"Content-Disposition"; nocase; content:"attachment"; nocase; pcre:"/filename\s*=\s*\"?[^\"\s]+\.(exe|dll|msi|ps1|bat|vbs|js)\"?/i";classtype:potentially-bad-traffic;metadata:attack_target Client, deployment Perimeter;sid:2501302; rev:1;)
+
+# 3) Attachment with common archive extensions
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Suspicious download: archive type (zip|rar|7z) attachment";flow:to_client,established;http.header; content:"Content-Disposition"; nocase; content:"attachment"; nocase; pcre:"/filename\s*=\s*\"?[^\"\s]+\.(zip|rar|7z)\"?/i";classtype:potentially-bad-traffic;metadata:attack_target Client, deployment Perimeter;sid:2501303; rev:1;)
