@@ -9,6 +9,7 @@ Tune method lists, size thresholds, and netvars ($HOME_NET, $EXTERNAL_NET) for y
 ###############################################################################
 
 # 200101 — Uncommon HTTP methods that often imply upload/write behavior
+# this rule still needs some work, not really catching the methods when sent with curl -X for testing
 alert http $HOME_NET any -> $EXTERNAL_NET any (
     msg:"HTTP exfil: uncommon method with body (PUT/PATCH/PROPFIND/PROPPATCH/MKCOL/REPORT/SEARCH/TRACE/COPY/MOVE)";
     flow:established,to_server;
