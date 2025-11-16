@@ -9,6 +9,7 @@ Tune method lists, size thresholds, and netvars ($HOME_NET, $EXTERNAL_NET) for y
 ###############################################################################
 
 # 200101 — Uncommon HTTP methods that often imply upload/write behavior
+# this rule still needs some work, not really catching the methods when sent with curl -X for testing
 alert http $HOME_NET any -> $EXTERNAL_NET any (
     msg:"HTTP exfil: uncommon method with body (PUT/PATCH/PROPFIND/PROPPATCH/MKCOL/REPORT/SEARCH/TRACE/COPY/MOVE)";
     flow:established,to_server;
@@ -129,9 +130,9 @@ Run Suricata on the interface that sees this traffic (e.g., lo for local tests),
 **A) Fire the uncommon verb rule (sid:200101)**
 ```bash
 # Any of these will do (each should trigger 200101):
-curl -X PROPFIND http://127.0.0.1:8088/
-curl -X PATCH -d 'x=1' http://127.0.0.1:8088/patch
-curl -X PUT --data-binary @/etc/hosts http://127.0.0.1:8088/put
+curl -X PROPFIND http://127.0.0.1:8088/ # this test didn't trigger
+curl -X PATCH -d 'x=1' http://127.0.0.1:8088/patch # this test successfully triggered
+curl -X PUT --data-binary @/etc/hosts http://127.0.0.1:8088/put # this test successfully triggered
 ```
 
 **Check alerts:**
